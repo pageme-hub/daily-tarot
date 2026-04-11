@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosuke/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
 
