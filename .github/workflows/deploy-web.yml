@@ -25,6 +25,7 @@ jobs:
           channel: stable
 
       - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter build web --release --base-href "/daily-tarot/"
 
       - uses: actions/upload-pages-artifact@v3
