@@ -16,8 +16,12 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // .env 로드
-  await dotenv.load(fileName: '.env');
+  // .env 로드 (웹 배포 시 .env가 비어있을 수 있으므로 실패 허용)
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    // .env 없거나 비어있으면 무시 — Supabase/AdMob은 fallback 처리됨
+  }
 
   // 앱 초기화 (Hive, Supabase, Firebase, AdMob 순)
   await AppInitializer.initialize();
