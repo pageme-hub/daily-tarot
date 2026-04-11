@@ -46,13 +46,13 @@ class ShareCardWidget extends StatelessWidget {
           // 배경: 라벤더 그라디언트
           _buildBackground(),
 
-          // 메인 콘텐츠
+          // 메인 콘텐츠 — 시각적으로 약간 위에 위치하도록 상단 여백 축소
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.fromLTRB(32, 0, 32, 60),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(height: 56),
+                const SizedBox(height: 20),
 
                 // 날짜
                 Text(
@@ -177,7 +177,7 @@ class ShareCardWidget extends StatelessWidget {
   }
 
   Widget _buildCardImage() {
-    final imagePath = CardImageHelper.getCardImagePathWithFallback(
+    final imagePath = CardImageHelper.getCardImagePath(
       card.cardId,
       skinId: skinId,
     );

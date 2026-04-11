@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/ads/ad_conditions_manager.dart';
 import '../../../core/ads/ad_manager.dart';
 import '../../../core/ads/interstitial_ad_service.dart';
 import '../../../core/utils/logger.dart';
@@ -7,41 +8,17 @@ import '../../../shared/providers/settings_provider.dart';
 // ==================== 광고 상태 모델 ====================
 
 class AdDisplayState {
-  /// 오늘 전면 광고 표시 횟수
-  final int todayInterstitialCount;
-
-  /// 마지막 전면 광고 표시 시각
-  final DateTime? lastInterstitialShownAt;
-
-  const AdDisplayState({
-    this.todayInterstitialCount = 0,
-    this.lastInterstitialShownAt,
-  });
-
-  AdDisplayState copyWith({
-    int? todayInterstitialCount,
-    DateTime? lastInterstitialShownAt,
-  }) {
-    return AdDisplayState(
-      todayInterstitialCount:
-          todayInterstitialCount ?? this.todayInterstitialCount,
-      lastInterstitialShownAt:
-          lastInterstitialShownAt ?? this.lastInterstitialShownAt,
-    );
-  }
+  const AdDisplayState();
 }
 
 // ==================== Notifier ====================
 
 /// 광고 표시 상태 관리 Notifier
 ///
-/// - 전면 광고 하루 최대 2회 제한
+/// - 전면 광고 하루 최대 2회 제한 (SharedPreferences 영속 저장 — 앱 재시작 후에도 유지)
 /// - 전면 광고 간 최소 60초 간격
 /// - 첫 실행(isFirstLaunch)이면 스플래시 광고 스킵
 class AdStateNotifier extends StateNotifier<AdDisplayState> {
-  static const int _kMaxDailyInterstitial = 2;
-  static const int _kMinIntervalSeconds = 60;
-
   final Ref _ref;
 
   AdStateNotifier(this._ref) : super(const AdDisplayState());
@@ -58,28 +35,6 @@ class AdStateNotifier extends StateNotifier<AdDisplayState> {
     return true;
   }
 
-  /// 카드 뽑기 전면 광고 표시 여부
-  ///
-  /// - 하루 최대 2회
-  /// - 마지막 광고로부터 60초 이상 경과
-  bool get shouldShowCardDrawAd {
-    if (state.todayInterstitialCount >= _kMaxDailyInterstitial) {
-      Logger.info('AdState: 오늘 최대 광고 횟수 초과 (${state.todayInterstitialCount}회)');
-      return false;
-    }
-
-    final last = state.lastInterstitialShownAt;
-    if (last != null) {
-      final elapsed = DateTime.now().difference(last).inSeconds;
-      if (elapsed < _kMinIntervalSeconds) {
-        Logger.info('AdState: 광고 최소 간격 미달 ($elapsed초)');
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   /// 전면 광고 표시 (조건 만족 시)
   ///
   /// [onCompleted]: 광고 완료(닫힘) 후 실행할 콜백
@@ -88,9 +43,16 @@ class AdStateNotifier extends StateNotifier<AdDisplayState> {
     required void Function() onCompleted,
     bool isSplash = false,
   }) async {
-    final canShow = isSplash ? shouldShowSplashAd : shouldShowCardDrawAd;
+    // 스플래시 광고는 첫 실행 여부만 확인
+    if (isSplash && !shouldShowSplashAd) {
+      onCompleted();
+      return;
+    }
 
+    // AdConditionsManager(SharedPreferences)로 하루 2회 / 60초 간격 확인
+    final canShow = await AdConditionsManager.instance.canShowInterstitial();
     if (!canShow) {
+      Logger.info('AdState: 광고 표시 조건 미충족 (일일 2회 제한 또는 60초 간격 미달)');
       onCompleted();
       return;
     }
@@ -105,9 +67,11 @@ class AdStateNotifier extends StateNotifier<AdDisplayState> {
       bool callbackFired = false;
 
       await InterstitialAdService.instance.showAd(
-        onAdDismissed: () {
+        onAdDismissed: () async {
           callbackFired = true;
-          _recordAdShown();
+          // SharedPreferences에 노출 기록 (앱 재시작 후에도 유지)
+          await AdConditionsManager.instance.recordInterstitialShown();
+          Logger.info('AdState: 전면광고 노출 기록 완료');
           onCompleted();
         },
       );
@@ -120,15 +84,6 @@ class AdStateNotifier extends StateNotifier<AdDisplayState> {
       Logger.error('AdState: 전면 광고 표시 실패: $e');
       onCompleted();
     }
-  }
-
-  /// 광고 표시 기록
-  void _recordAdShown() {
-    state = state.copyWith(
-      todayInterstitialCount: state.todayInterstitialCount + 1,
-      lastInterstitialShownAt: DateTime.now(),
-    );
-    Logger.info('AdState: 광고 표시 기록 (오늘 ${state.todayInterstitialCount}회)');
   }
 }
 

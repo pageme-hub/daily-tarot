@@ -6,6 +6,8 @@ import '../../../../shared/utils/card_image_helper.dart';
 import '../../../../shared/providers/settings_provider.dart';
 import '../../../card/data/models/tarot_card.dart';
 import '../../../card/providers/card_data_provider.dart';
+import '../widgets/oldschool_modal.dart';
+import '../widgets/meaning_section.dart';
 
 /// 카드 상세 화면
 ///
@@ -60,7 +62,7 @@ class CardDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
 
                   // 정방향 의미
-                  _MeaningSection(
+                  MeaningSection(
                     icon: Icons.keyboard_arrow_up_rounded,
                     title: '정방향',
                     message: card.uprightMessage,
@@ -70,7 +72,7 @@ class CardDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
 
                   // 역방향 의미
-                  _MeaningSection(
+                  MeaningSection(
                     icon: Icons.keyboard_arrow_down_rounded,
                     title: '역방향',
                     message: card.reversedMessage,
@@ -104,6 +106,8 @@ class CardDetailScreen extends ConsumerWidget {
   }
 }
 
+// ==================== 카드 이미지 섹션 ====================
+
 /// 카드 이미지 섹션 (롱프레스 → 올드스쿨 모달)
 class _CardImageSection extends StatelessWidget {
   final TarotCard card;
@@ -118,7 +122,7 @@ class _CardImageSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imagePath = CardImageHelper.getCardImagePathWithFallback(
+    final imagePath = CardImageHelper.getCardImagePath(
       card.cardId,
       skinId: skinId,
     );
@@ -173,7 +177,7 @@ class _CardImageSection extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _OldschoolModal(
+      builder: (ctx) => OldschoolModal(
         card: card,
         riderWaitePath: rwPath,
       ),
@@ -181,154 +185,7 @@ class _CardImageSection extends StatelessWidget {
   }
 }
 
-/// 라이더 웨이트 원본 참조 모달
-class _OldschoolModal extends StatelessWidget {
-  final TarotCard card;
-  final String riderWaitePath;
-
-  const _OldschoolModal({
-    required this.card,
-    required this.riderWaitePath,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      maxChildSize: 0.95,
-      minChildSize: 0.5,
-      builder: (ctx, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              // 드래그 핸들
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: kDefaultPadding,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.history_edu_outlined,
-                        size: 18, color: kPrimaryDark),
-                    const SizedBox(width: 8),
-                    Text(
-                      '라이더 웨이트 원본 — ${card.nameKr}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: kPrimaryDark,
-                          ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      color: kTextSecondary,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(kDefaultPadding),
-                  child: Column(
-                    children: [
-                      // 라이더 웨이트 이미지
-                      ClipRRect(
-                        borderRadius:
-                            BorderRadius.circular(kCardBorderRadius),
-                        child: Image.asset(
-                          riderWaitePath,
-                          height: 280,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 200,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.1),
-                              borderRadius:
-                                  BorderRadius.circular(kCardBorderRadius),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '원본 이미지를 준비 중이에요',
-                                style: TextStyle(color: kTextSecondary),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // 전통 해석 (있을 경우)
-                      if (card.traditionalMeaning != null) ...[
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '전통 해석',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: kPrimaryDark,
-                                ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          card.traditionalMeaning!,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    height: 1.7,
-                                    color: kTextSecondary,
-                                  ),
-                        ),
-                      ] else ...[
-                        Text(
-                          '라이더 웨이트(1909)는 타로 카드의 표준이 된 원본 덱으로,\n'
-                          '아서 에드워드 웨이트와 파멜라 콜먼 스미스가 제작했습니다.\n'
-                          '퍼블릭 도메인으로 참조 목적으로 제공됩니다.',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    height: 1.6,
-                                    color: kTextSecondary,
-                                  ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
+// ==================== 카드 메타 정보 ====================
 
 /// 카드 메타 정보 (번호 + 분류)
 class _CardMetaInfo extends StatelessWidget {
@@ -393,86 +250,10 @@ class _MetaBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: color == kBrandColorPrimary ? kPrimaryDark : const Color(0xFFC4A84A),
+          color: color == kBrandColorPrimary
+              ? kPrimaryDark
+              : const Color(0xFFC4A84A),
         ),
-      ),
-    );
-  }
-}
-
-/// 의미 섹션 (정방향 / 역방향)
-class _MeaningSection extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-  final String meaning;
-  final Color accentColor;
-
-  const _MeaningSection({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.meaning,
-    required this.accentColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(kDefaultPadding),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withOpacity(0.05)
-            : accentColor.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(kCardBorderRadius),
-        border: Border.all(
-          color: accentColor.withOpacity(0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 방향 제목
-          Row(
-            children: [
-              Icon(icon, size: 18, color: accentColor),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: accentColor,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // 한 줄 메시지
-          Text(
-            '"$message"',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontStyle: FontStyle.italic,
-                  fontWeight: FontWeight.w500,
-                  color: accentColor,
-                  height: 1.4,
-                ),
-          ),
-          const SizedBox(height: 10),
-          const Divider(height: 1),
-          const SizedBox(height: 10),
-
-          // 상세 의미
-          Text(
-            meaning,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  height: 1.7,
-                  color: kTextSecondary,
-                ),
-          ),
-        ],
       ),
     );
   }

@@ -114,7 +114,7 @@ class CardFlipWidgetState extends State<CardFlipWidget>
   }
 
   Widget _buildFrontCard() {
-    final imagePath = CardImageHelper.getCardImagePathWithFallback(
+    final imagePath = CardImageHelper.getCardImagePath(
       widget.cardId,
       skinId: widget.skinId,
     );
@@ -252,7 +252,7 @@ class CardFrontWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imagePath = CardImageHelper.getCardImagePathWithFallback(
+    final imagePath = CardImageHelper.getCardImagePath(
       cardId,
       skinId: skinId,
     );

@@ -30,7 +30,7 @@ class AppConfigRepository {
       _cacheBox = await Hive.openBox<String>(_kCacheBoxName);
     } catch (e) {
       Logger.error('AppConfigRepository: 캐시 Box 열기 실패: $e');
-      _cacheBox = await Hive.openBox<String>(_kCacheBoxName);
+      rethrow;
     }
     return _cacheBox!;
   }
@@ -48,7 +48,8 @@ class AppConfigRepository {
             .select()
             .eq('app_id', _kAppId)
             .eq('is_active', true)
-            .order('priority', ascending: false);
+            .order('priority', ascending: false)
+            .timeout(const Duration(seconds: 5));
 
         final popups = (response as List<dynamic>)
             .map((e) => e as Map<String, dynamic>)
@@ -96,7 +97,8 @@ class AppConfigRepository {
             .from(_kAppsTable)
             .select('app_privacy')
             .eq('app_id', _kAppId)
-            .maybeSingle();
+            .maybeSingle()
+            .timeout(const Duration(seconds: 5));
 
         final url = response?['app_privacy'] as String?;
         if (url != null && url.isNotEmpty) {
@@ -126,7 +128,8 @@ class AppConfigRepository {
             .from(_kAppsTable)
             .select('app_terms')
             .eq('app_id', _kAppId)
-            .maybeSingle();
+            .maybeSingle()
+            .timeout(const Duration(seconds: 5));
 
         final url = response?['app_terms'] as String?;
         if (url != null && url.isNotEmpty) {

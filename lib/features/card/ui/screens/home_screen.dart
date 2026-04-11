@@ -9,55 +9,54 @@ import '../../providers/ad_state_provider.dart';
 import '../widgets/card_flip_widget.dart';
 import '../widgets/card_result_widget.dart';
 
-/// 홈 화면 — 오늘의 카드 뽑기
+/// 이번 세션에서 카드 뒤집기 애니메이션이 진행 중인지 여부
 ///
-/// 상태A: 아직 뽑지 않음 → 카드 뒷면 + "카드를 터치하세요"
-/// 상태B: 방금 뽑음 → 뒤집기 애니메이션
-/// 상태C: 이미 결과를 봄 → 결과 위젯 바로 표시
-class HomeScreen extends ConsumerStatefulWidget {
+/// RULES.md: setState 사용 금지 — StateProvider로 관리
+final _isFlippingProvider = StateProvider<bool>((ref) => false);
+
+/// 홈 화면 — 오늘의 카드 뽑기 (상태A: 미뽑기 / B: 애니메이션 / C: 결과)
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  @override
-  ConsumerState<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends ConsumerState<HomeScreen> {
-  /// 카드를 뽑아서 애니메이션이 시작된 상태인지 (이번 세션)
-  bool _isFlipping = false;
-
-  /// 카드 탭 처리 — 광고 → 카드 뽑기 → 뒤집기 애니메이션
-  Future<void> _onCardTap() async {
+  /// 카드 탭 처리 — 광고 없이 카드 뽑기 → 뒤집기 애니메이션
+  ///
+  /// 오늘 처음 뽑기는 광고 없이 제공. 다시 뽑기는 [_onRedrawTap] 참조.
+  Future<void> _onCardTap(WidgetRef ref) async {
     final cardState = ref.read(dailyCardProvider);
+    final isFlipping = ref.read(_isFlippingProvider);
 
     // 이미 뽑았거나 로딩 중이면 무시
     if (cardState is DailyCardDrawn ||
         cardState is DailyCardLoading ||
-        _isFlipping) {
+        isFlipping) {
       return;
     }
 
-    // 전면광고 표시 → 카드 뽑기
+    ref.read(_isFlippingProvider.notifier).state = true;
+    await ref.read(dailyCardProvider.notifier).drawCard();
+  }
+
+  /// 다시 뽑기 — 전면광고 시청 후 새 카드 뽑기
+  Future<void> _onRedrawTap(WidgetRef ref) async {
     await ref.read(adStateProvider.notifier).showInterstitialAd(
       isSplash: false,
       onCompleted: () async {
-        if (!mounted) return;
-        setState(() => _isFlipping = true);
-        await ref.read(dailyCardProvider.notifier).drawCard();
+        ref.read(_isFlippingProvider.notifier).state = true;
+        await ref.read(dailyCardProvider.notifier).redrawCard();
       },
     );
   }
 
-  /// 뒤집기 애니메이션 완료 후: 결과 확인 + 알림 권한 요청
-  Future<void> _onFlipComplete() async {
+  Future<void> _onFlipComplete(WidgetRef ref, BuildContext context) async {
     await ref.read(dailyCardProvider.notifier).markResultSeen();
-    if (mounted) {
-      setState(() => _isFlipping = false);
-    }
-    _maybeRequestNotificationPermission();
+    ref.read(_isFlippingProvider.notifier).state = false;
+    _maybeRequestNotificationPermission(ref, context);
   }
 
-  /// 첫 카드 결과 확인 직후 알림 권한 요청 (마케팅 브리핑 반영)
-  Future<void> _maybeRequestNotificationPermission() async {
+  Future<void> _maybeRequestNotificationPermission(
+    WidgetRef ref,
+    BuildContext context,
+  ) async {
     final settings = ref.read(settingsProvider);
     if (settings.hasRequestedNotificationPermission) return;
 
@@ -65,7 +64,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .read(settingsProvider.notifier)
         .markNotificationPermissionRequested();
 
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     final agreed = await showDialog<bool>(
       context: context,
@@ -92,14 +91,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
 
-    if (agreed == true && mounted) {
+    if (agreed == true && context.mounted) {
       // NotificationService를 통해 권한 요청 + 알림 자동 등록
       final granted =
           await NotificationService.instance.requestAndroidPermission();
       if (granted) {
-        final settings = ref.read(settingsProvider);
+        final currentSettings = ref.read(settingsProvider);
         // 알림이 아직 켜지지 않은 상태이면 기본 시간(09:00)으로 등록
-        if (!settings.notificationEnabled) {
+        if (!currentSettings.notificationEnabled) {
           await ref.read(settingsProvider.notifier).toggleNotification();
         }
       }
@@ -107,7 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cardState = ref.watch(dailyCardProvider);
 
     return Scaffold(
@@ -119,7 +118,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             _HomeHeader(),
             Expanded(
-              child: _buildBody(cardState),
+              child: _buildBody(context, ref, cardState),
             ),
             const BannerAdWidget(),
           ],
@@ -128,23 +127,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildBody(DailyCardState cardState) {
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref,
+    DailyCardState cardState,
+  ) {
     return switch (cardState) {
       DailyCardLoading() => const Center(
           child: CircularProgressIndicator(color: kPrimaryDark),
         ),
       DailyCardError(:final message) => _ErrorView(message: message),
-      DailyCardNotDrawn() => _NotDrawnView(onTap: _onCardTap),
+      DailyCardNotDrawn() => _NotDrawnView(onTap: () => _onCardTap(ref)),
       DailyCardDrawn(:final card, :final isReversed, :final hasSeenResult) =>
-        // hasSeenResult=true이면 결과 바로 표시, false이면 애니메이션
         !hasSeenResult
             ? _FlipAnimationView(
                 cardId: card.cardId,
                 isReversed: isReversed,
                 autoFlip: true,
-                onFlipComplete: _onFlipComplete,
+                onFlipComplete: () => _onFlipComplete(ref, context),
               )
-            : CardResultWidget(card: card, isReversed: isReversed),
+            : CardResultWidget(
+                card: card,
+                isReversed: isReversed,
+                onRedraw: () => _onRedrawTap(ref),
+              ),
     };
   }
 }
@@ -167,10 +173,12 @@ class _HomeHeader extends StatelessWidget {
         8,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // [피드백 1-5] 날짜 중앙정렬
           Text(
             dateLabel,
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: kTextSecondary,
                   letterSpacing: 0.5,
@@ -179,6 +187,7 @@ class _HomeHeader extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '오늘 당신에게 필요한 메시지는?',
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: kPrimaryDark,
                   fontWeight: FontWeight.w600,

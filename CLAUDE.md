@@ -4,7 +4,7 @@
 
 **매일타로** — MZ 감성 미니멀 1일 1타로 앱. 앱 공장(App Factory) 시스템으로 제작.
 
-- 패키지명: `com.appfactory.maeil_tarot`
+- 패키지명: `com.pageme.daily_tarot`
 - 타겟: 20~35세 여성, MZ세대
 - 핵심 컨셉: "타로계의 명언 앱" — 하루 1장 30초 경험
 

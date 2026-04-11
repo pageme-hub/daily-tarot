@@ -36,7 +36,8 @@ class CardRepository {
             .from(_kSupabaseTable)
             .select()
             .eq('app_id', _kAppId)
-            .order('id');
+            .order('id')
+            .timeout(const Duration(seconds: 5));
 
         final cards = (response as List<dynamic>)
             .map((json) => TarotCard.fromJson(json as Map<String, dynamic>))

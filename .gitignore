@@ -79,3 +79,6 @@ assets/images/cards/rider-waite/
 
 # Claude Code
 .claude/settings.local.json
+
+# User
+media/

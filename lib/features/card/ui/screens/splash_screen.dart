@@ -6,6 +6,7 @@ import '../../../../features/card/providers/card_data_provider.dart';
 import '../../../../features/card/providers/ad_state_provider.dart';
 import '../../../../shared/providers/settings_provider.dart';
 import '../../../../core/utils/logger.dart';
+import '../../data/models/tarot_card.dart';
 
 /// 스플래시 화면
 ///
@@ -59,7 +60,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         )
         .catchError((e) {
       Logger.error('SplashScreen: 카드 로드 오류: $e');
-      return <dynamic>[];
+      return <TarotCard>[];
     });
 
     await Future.wait([minSplashFuture, cardLoadFuture]);

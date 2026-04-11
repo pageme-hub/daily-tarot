@@ -87,7 +87,7 @@ class AppConstants {
   // ==================== 카드 스킨 ====================
 
   static const String kDefaultSkinId = 'default';
-  static const String kRiderWaiteSkinId = 'rider-waite';
+  static const String kRiderWaiteSkinId = 'rider_waite';
 
   // ==================== 타로 설정 ====================
 

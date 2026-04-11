@@ -66,23 +66,22 @@ class DailyCardNotifier extends StateNotifier<DailyCardState> {
       final cache = HiveBoxes.dailyCardBox.get(today);
 
       if (cache != null) {
-        // 오늘 이미 뽑은 카드가 있음
-        final cardsAsync = _ref.read(cardListProvider);
-        final cards = await _waitForCards(cardsAsync);
+        // 오늘 이미 뽑은 카드가 있음 — FutureProvider 완료를 직접 await (M-04)
+        final cards = await _ref.read(cardListProvider.future);
 
-        if (cards != null) {
-          try {
-            final card = cards.firstWhere((c) => c.id == cache.cardId);
-            state = DailyCardDrawn(
-              card: card,
-              isReversed: cache.isReversed,
-              hasSeenResult: cache.hasSeenResult,
-            );
-            Logger.info('DailyCard: 오늘($today) 캐시 복원 — ${card.nameKr}');
-            return;
-          } catch (_) {
-            Logger.error('DailyCard: 캐시된 cardId(${cache.cardId})를 카드 목록에서 찾지 못함');
-          }
+        try {
+          final card = cards.firstWhere((c) => c.id == cache.cardId);
+          state = DailyCardDrawn(
+            card: card,
+            isReversed: cache.isReversed,
+            hasSeenResult: cache.hasSeenResult,
+          );
+          Logger.info('DailyCard: 오늘($today) 캐시 복원 — ${card.nameKr}');
+          return;
+        } catch (_) {
+          Logger.error(
+            'DailyCard: 캐시된 cardId(${cache.cardId})를 카드 목록에서 찾지 못함',
+          );
         }
       }
 
@@ -91,27 +90,6 @@ class DailyCardNotifier extends StateNotifier<DailyCardState> {
       Logger.error('DailyCard: 초기화 실패: $e');
       state = const DailyCardNotDrawn();
     }
-  }
-
-  /// FutureProvider 완료 대기 헬퍼
-  Future<List<TarotCard>?> _waitForCards(
-      AsyncValue<List<TarotCard>> cardsAsync) async {
-    return cardsAsync.maybeWhen(
-      data: (cards) => Future.value(cards),
-      orElse: () async {
-        // 아직 로딩 중이면 최대 3초 대기
-        for (int i = 0; i < 30; i++) {
-          await Future.delayed(const Duration(milliseconds: 100));
-          final updated = _ref.read(cardListProvider);
-          final result = updated.maybeWhen(
-            data: (c) => c,
-            orElse: () => null,
-          );
-          if (result != null) return result;
-        }
-        return null;
-      },
-    );
   }
 
   /// 카드 뽑기
@@ -123,10 +101,10 @@ class DailyCardNotifier extends StateNotifier<DailyCardState> {
     state = const DailyCardLoading();
 
     try {
-      final cardsAsync = _ref.read(cardListProvider);
-      final cards = await _waitForCards(cardsAsync);
+      // FutureProvider 완료를 직접 await (M-04: polling 패턴 제거)
+      final cards = await _ref.read(cardListProvider.future);
 
-      if (cards == null || cards.isEmpty) {
+      if (cards.isEmpty) {
         state = const DailyCardError('카드 데이터를 로드할 수 없어요');
         return;
       }
@@ -163,9 +141,62 @@ class DailyCardNotifier extends StateNotifier<DailyCardState> {
         hasSeenResult: false,
       );
 
-      Logger.info('DailyCard: 뽑기 완료 — ${card.nameKr} (${isReversed ? "역방향" : "정방향"})');
+      Logger.info(
+        'DailyCard: 뽑기 완료 — ${card.nameKr} (${isReversed ? "역방향" : "정방향"})',
+      );
     } catch (e) {
       Logger.error('DailyCard: 뽑기 실패: $e');
+      state = const DailyCardError('카드 뽑기에 실패했어요');
+    }
+  }
+
+  /// 다시 뽑기 — 오늘의 캐시 삭제 후 타임스탬프 기반 새 시드로 재뽑기
+  ///
+  /// 광고 시청 완료 후 호출. 기존 Hive 캐시를 삭제하고 새 카드를 뽑음.
+  Future<void> redrawCard() async {
+    state = const DailyCardLoading();
+
+    try {
+      final today = _todayString();
+      // 오늘 캐시 삭제
+      await HiveBoxes.dailyCardBox.delete(today);
+
+      final cards = await _ref.read(cardListProvider.future);
+      if (cards.isEmpty) {
+        state = const DailyCardError('카드 데이터를 로드할 수 없어요');
+        return;
+      }
+
+      // 타임스탬프 기반 시드 → 매번 다른 카드
+      final seed = DateTime.now().millisecondsSinceEpoch;
+      final rng = Random(seed);
+
+      final index = rng.nextInt(cards.length);
+      final card = cards[index];
+      final isReversed = rng.nextBool();
+
+      final cache = DailyCardCache(
+        date: today,
+        cardId: card.id,
+        isReversed: isReversed,
+        hasSeenResult: false,
+      );
+      await HiveBoxes.dailyCardBox.put(today, cache);
+
+      await _updateCardHistory(card.id, today);
+      _ref.invalidate(cardHistoryProvider);
+
+      state = DailyCardDrawn(
+        card: card,
+        isReversed: isReversed,
+        hasSeenResult: false,
+      );
+
+      Logger.info(
+        'DailyCard: 다시 뽑기 완료 — ${card.nameKr} (${isReversed ? "역방향" : "정방향"})',
+      );
+    } catch (e) {
+      Logger.error('DailyCard: 다시 뽑기 실패: $e');
       state = const DailyCardError('카드 뽑기에 실패했어요');
     }
   }

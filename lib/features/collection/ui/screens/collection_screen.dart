@@ -134,7 +134,7 @@ class _CollectionCardItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imagePath = CardImageHelper.getCardImagePathWithFallback(card.cardId);
+    final imagePath = CardImageHelper.getCardThumbnailPath(card.cardId);
 
     return GestureDetector(
       onTap: () => context.push('/collection/${card.cardId}'),
